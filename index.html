@@ -1,0 +1,25 @@
+<select id="languageSelect">
+    <option value="auto">Automatisch detecteren</option>
+    <option value="nld" selected>Nederlands</option>
+    <option value="eng">English</option>
+    <option value="fra">Français</option>
+    <option value="deu">Deutsch</option>
+    <option value="ara">العربية</option>
+</select>
+
+<h1 id="appTitle">🚀 DocSnap</h1>
+<p id="description">Upload een document (PDF) en krijg highlights, actieplan & deadlines!</p>
+
+<div id="upload" class="upload">
+    <p id="uploadText">Sleep je PDF of foto hier of klik om te uploaden 📄</p>
+</div>
+<input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp" style="display: none;" onchange="handleFile(event)">
+
+<div id="output">
+    <h2 id="analysisHeader"></h2>
+    <div id="summary"></div>
+    <div id="highlights"></div>
+    <div id="actionPlan"></div>
+    <div id="deadline"></div>
+</div>
+<div id="errorMsg" style="display: none; color: red; text-align: center; padding: 10px;"></div>
