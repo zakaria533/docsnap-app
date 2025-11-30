@@ -338,13 +338,14 @@
         // Upload trigger (gefixt: add event listener voor user-click)
         document.getElementById('upload').addEventListener('click', function(e) {
             e.preventDefault();
+            e.stopPropagation();
             document.getElementById('fileInput').click();
         });
 
         // File input change
         document.getElementById('fileInput').addEventListener('change', handleFile);
 
-        // Upload handler (PDF vs Image)
+        // Upload handler (PDF vs Image, met fallback voor OCR)
         async function handleFile(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -370,7 +371,7 @@
                     }
                 } else if (file.type.startsWith('image/')) {
                     if (typeof Tesseract === 'undefined') {
-                        throw new Error('OCR-lib nog niet geladen. Refresh.');
+                        throw new Error('OCR-lib nog niet geladen. Alleen PDF's voor nu. Refresh voor foto's.');
                     }
                     const { data: { text } } = await Tesseract.recognize(file, 'eng', { logger: m => console.log(m) });
                     fullText = text;
