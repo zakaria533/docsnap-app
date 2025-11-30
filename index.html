@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DocSnap - Snappen in seconden</title>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.449/build/pdf.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 
@@ -227,8 +229,8 @@
     <div id="upload" class="upload">
         <p id="uploadText">Sleep je PDF of foto hier of klik om te uploaden 📄</p>
     </div>
-    <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp" style="display: none;" onchange="handleFile(event)">
-
+    <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp" style="display: none;">
+    
     <div id="output">
         <h2 id="analysisHeader"></h2>
         <div id="summary"></div>
@@ -236,30 +238,10 @@
         <div id="actionPlan"></div>
         <div id="deadline"></div>
     </div>
-    <div id="errorMsg" style="display: none; color: red; text-align: center; padding: 10px;"></div>
+    <div id="errorMsg"></div>
 
     <script>
-        // Wacht tot de pagina volledig geladen is (fix voor pdfjsLib-timing)
-        window.addEventListener('load', function() {
-            // Check of pdfjsLib bestaat
-            if (typeof pdfjsLib !== 'undefined') {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.449/build/pdf.worker.min.js';
-                console.log('PDF.js worker geladen!');
-            } else {
-                console.error('PDF.js nog niet geladen – probeer refresh.');
-            }
-
-            // Init UI na load
-            updateUI('nld');
-        });
-
-        // Lib-checks (alleen Tesseract)
-        if (typeof Tesseract === 'undefined') {
-            document.getElementById('errorMsg').innerHTML = 'OCR-lib niet geladen. Refresh.';
-            document.getElementById('errorMsg').style.display = 'block';
-        }
-
-        // Translations (NL default, incl. jouw zin – nu met image-ondersteuning in tekst)
+        // Translations
         const translations = {
             nld: {
                 appTitle: '🚀 DocSnap',
@@ -338,7 +320,7 @@
             }
         };
 
-        // Update UI (gefixt: forceert directe change met setTimeout voor DOM)
+        // Update UI
         function updateUI(lang = 'nld') {
             const t = translations[lang] || translations.nld;
             const output = document.getElementById('output');
@@ -349,96 +331,28 @@
             document.getElementById('uploadText').textContent = t.uploadText;
         }
 
-        // Dropdown event (gefixt: immediate update, geen delay)
+        // Dropdown event
         document.getElementById('languageSelect').addEventListener('change', function() {
             const selectedLang = this.value;
-            setTimeout(() => updateUI(selectedLang === 'auto' ? 'nld' : selectedLang), 0); // Force immediate
+            setTimeout(() => updateUI(selectedLang === 'auto' ? 'nld' : selectedLang), 0);
         });
 
-        // Upload handler (nieuw: check file type – PDF vs Image)
+        // Upload trigger (gefixt: add event listener voor user-click)
+        document.getElementById('upload').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('fileInput').click();
+        });
+
+        // File input change
+        document.getElementById('fileInput').addEventListener('change', handleFile);
+
+        // Upload handler (PDF vs Image)
         async function handleFile(event) {
             const file = event.target.files[0];
             if (!file) return;
             
             const errorDiv = document.getElementById('errorMsg');
             errorDiv.style.display = 'none';
+            errorDiv.innerHTML = 'Laden...';
             
-            try {
-                let fullText = '';
-                
-                if (file.type === 'application/pdf') {
-                    // PDF handling (nu met check op pdfjsLib)
-                    if (typeof pdfjsLib === 'undefined') {
-                        throw new Error('PDF-lib nog niet geladen. Wacht even en probeer opnieuw.');
-                    }
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        fullText += textContent.items.map(item => item.str).join(' ') + '\n';
-                    }
-                } else if (file.type.startsWith('image/')) {
-                    // Image OCR met Tesseract
-                    if (typeof Tesseract === 'undefined') {
-                        throw new Error('OCR-lib nog niet geladen. Refresh.');
-                    }
-                    const { data: { text } } = await Tesseract.recognize(file, 'eng', { logger: m => console.log(m) });
-                    fullText = text;
-                } else {
-                    throw new Error('Alleen PDF of images (JPG/PNG) ondersteund.');
-                }
-                
-                if (fullText.length < 20) throw new Error('Te weinig tekst herkend. Probeer duidelijke foto.');
-                
-                analyzeText(fullText);
-            } catch (e) {
-                console.error('Upload error:', e);
-                errorDiv.innerHTML = `Fout: ${e.message}`;
-                errorDiv.style.display = 'block';
-            }
-        }
-
-        // Analyse (fallback naar NL voor auto, geen franc)
-        function analyzeText(text) {
-            let detectedLang = 'nld';
-            const selectedLang = document.getElementById('languageSelect').value;
-            if (selectedLang === 'auto') {
-                // Fallback: Altijd NL voor auto (tot franc werkt)
-                detectedLang = 'nld';
-                console.log('Auto-detect fallback naar NL.');
-            } else {
-                detectedLang = selectedLang;
-            }
-            
-            updateUI(detectedLang);
-            const t = translations[detectedLang];
-            const riskLevel = Math.random() > 0.5 ? 'low' : 'medium';
-            const riskText = t.risks[riskLevel];
-            
-            const docTypeKey = text.match(/boete|amende|fine|غرامة/i) ? 'boete' : 'contract';
-            const docType = t.docTypes[docTypeKey] || 'Document';
-            const highlights = text.match(/€\d+|deadline|betalen|répondre|payez|bezahlen|غرامة|frist/gi) || ['Geen rode vlaggen.'];
-            const actions = t.actions;
-            const deadlineMatch = text.match(/\d{1,2} [a-zA-Z]{3,9} \d{4}/i);
-            const deadline = deadlineMatch ? deadlineMatch[0] : t.noDeadline;
-            
-            document.getElementById('analysisHeader').innerHTML = `${t.analysisHeader} <strong>${docType}</strong> | Risico: <span class="risk">${riskText}</span> | ${t.detected} <span id="detectedLang">${detectedLang.toUpperCase()}</span>`;
-            
-            document.getElementById('summary').innerHTML = `<p><strong>${t.summary.replace('{type}', docType.toLowerCase()).replace('{highlight}', highlights[0] || 'Alles oké')}</strong></p>`;
-            
-            document.getElementById('highlights').innerHTML = `<h3>${t.highlightsTitle}</h3><ul>${highlights.map(h => `<li class="highlight">${h}</li>`).join('')}</ul>`;
-            
-            document.getElementById('actionPlan').innerHTML = `<h3>${t.actionPlanTitle}</h3>${actions.map(a => `<div class="action">${a}</div>`).join('')}`;
-            
-            document.getElementById('deadline').innerHTML = `<h3>${t.deadlineTitle} ${deadline}</h3>`;
-            
-            document.getElementById('output').style.display = 'block';
-            document.getElementById('output').scrollIntoView({ behavior: 'smooth' });
-        }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.449/build/pdf.min.js"></script>
-    <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
-</body>
-</html>
+            try
